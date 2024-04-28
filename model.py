@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader, TensorDataset, Subset
 import torch.optim as optim
 import numpy as np
 import pandas as pd
@@ -66,51 +66,136 @@ class hex_model(nn.Module):
 
         return x
 
+
+#LOOCV training
 def main(args):
     data_path = args.input_path
     file_nums = [5,7,12,19,208,209,1294]
     input_channel = args.nint
     features, labels = data_processing(data_path, file_nums, input_channel)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = hex_model(input_channel).to(device)
-    criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.005)
-    epochs = 20
-    train_losses, val_losses = [], []
-    for epoch in range(args.epochs):
-        # training period
-        model.train()
-        running_loss = 0.0
-        for inputs, targets in train_loader:
-            inputs, targets = inputs.to(device), targets.to(device)
-            optimizer.zero_grad()
-            outputs = model(inputs)
-            loss = criterion(outputs, targets)
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item()
-        train_losses.append(running_loss/len(train_loader))
+    data = torch.tensor(features, dtype=torch.float32)
+    labels = np.asarray(labels)
+    labels = torch.tensor(labels, dtype=torch.float32).unsqueeze(1)
+    dataset = TensorDataset(data, labels)
+
+    epoch_acc = []
+    epoch_train_losses = []
+    epoch_val_losses = []
+
+    for i in range(len(dataset)):
+        train_indices = list(range(len(dataset)))
+        train_indices.pop(i)
+        train_subset = Subset(dataset, train_indices)
+        test_subset = Subset(dataset, [i])
+
+        train_loader = DataLoader(train_subset, batch_size=2, shuffle=True)
+        test_loader = DataLoader(test_subset, batch_size=1, shuffle=False)
     
-        # evaluation period
-        model.eval()
-        val_loss = 0.0
-        with torch.no_grad():
-            for inputs, targets in val_loader:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model = hex_model(input_channel).to(device)
+        criterion = nn.CrossEntropyLoss()
+        optimizer = optim.Adam(model.parameters(), lr=0.005)
+
+        fold_train_losses = []
+        fold_val_losses = []
+        fold_acc = []
+        
+        for epoch in range(args.epochs):
+            # training period
+            model.train()
+            training_loss = 0
+            for inputs, targets in train_loader:
                 inputs, targets = inputs.to(device), targets.to(device)
+                optimizer.zero_grad()
                 outputs = model(inputs)
                 loss = criterion(outputs, targets)
-                val_loss += loss.item()
-        val_losses.append(val_loss/len(val_loader))
+                loss.backward()
+                optimizer.step()
+                training_loss += loss.item()
+            fold_train_losses.append(training_loss / len(train_loader))
         
-        print(f'Epoch {epoch+1}, Train Loss: {training_losses[-1]}, Validation Loss: {val_losses[-1]}')
+            # evaluation period
+            model.eval()
+            total_val_loss = 0
+            total_abs_error = 0
+            count_samples = 0
+            with torch.no_grad():
+                for inputs, targets in val_loader:
+                    inputs, targets = inputs.to(device), targets.to(device)
+                    outputs = model(inputs)
+                    loss = criterion(outputs, targets)
+                    val_loss += loss.item()
+                    total_val_loss += loss.item()
+                    total_abs_error += torch.abs(outputs - targets).sum().item()
+                    count_samples += targets.size(0)
+            fold_val_losses.append(total_val_loss / len(test_loader))
+            fold_acc.append(total_abs_error / count_samples)
+            print(f'Fold {i+1}, Epoch {epoch+1}, Train Loss: {fold_train_losses[-1]}, Validation Loss: {fold_val_losses[-1]}, MAE: {fold_epoch_acc[-1]}')
 
+        epoch_train_losses.append(fold_train_losses)
+        epoch_val_losses.append(fold_val_losses)
+        epoch_acc.append(fold_acc)
+
+    mean_epoch_train_losses = np.mean(epoch_train_losses, axis=0)
+    mean_epoch_val_losses = np.mean(epoch_val_losses, axis=0)
+    mean_epoch_acc = np.mean(epoch_acc, axis=0)
+
+    plt.figure(figsize=(12, 4))
+    plt.subplot(1, 2, 1)
     plt.plot(training_losses, label='Training loss')
     plt.plot(val_losses, label='Validation loss')
     plt.legend()
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
     plt.savefig(f'{args.output_dir}/losses.png')
+
+
+# def main(args):
+#     data_path = args.input_path
+#     file_nums = [5,7,12,19,208,209,1294]
+#     input_channel = args.nint
+#     features, labels = data_processing(data_path, file_nums, input_channel)
+
+#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#     model = hex_model(input_channel).to(device)
+#     criterion = nn.CrossEntropyLoss()
+#     optimizer = optim.Adam(model.parameters(), lr=0.005)
+#     train_losses, val_losses = [], []
+#     for epoch in range(args.epochs):
+#         # training period
+#         model.train()
+#         running_loss = 0.0
+#         for inputs, targets in train_loader:
+#             inputs, targets = inputs.to(device), targets.to(device)
+#             optimizer.zero_grad()
+#             outputs = model(inputs)
+#             loss = criterion(outputs, targets)
+#             loss.backward()
+#             optimizer.step()
+#             running_loss += loss.item()
+#         train_losses.append(running_loss/len(train_loader))
+    
+#         # evaluation period
+#         model.eval()
+#         val_loss = 0.0
+#         with torch.no_grad():
+#             for inputs, targets in val_loader:
+#                 inputs, targets = inputs.to(device), targets.to(device)
+#                 outputs = model(inputs)
+#                 loss = criterion(outputs, targets)
+#                 val_loss += loss.item()
+#         val_losses.append(val_loss/len(val_loader))
+        
+#         print(f'Epoch {epoch+1}, Train Loss: {training_losses[-1]}, Validation Loss: {val_losses[-1]}')
+
+#     plt.plot(training_losses, label='Training loss')
+#     plt.plot(val_losses, label='Validation loss')
+#     plt.legend()
+#     if not os.path.exists(args.output_dir):
+#         os.makedirs(args.output_dir)
+#     plt.savefig(f'{args.output_dir}/losses.png')
+
 
 
 if __name__ == '__main__':
