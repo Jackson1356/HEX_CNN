@@ -82,16 +82,16 @@ class hex_model(nn.Module):
 
 #     epoch_acc = []
 #     epoch_train_losses = []
-#     epoch_val_losses = []
+#     epoch_test_losses = []
 
 #     for i in range(len(dataset)-1):
 #         train_indices = list(range(len(dataset)))
 #         train_indices.pop(i)
 #         train_subset = Subset(dataset, train_indices)
-#         val_subset = Subset(dataset, [i])
+#         test_subset = Subset(dataset, [i])
 
 #         train_loader = DataLoader(train_subset, batch_size=2, shuffle=True)
-#         val_loader = DataLoader(val_subset, batch_size=1, shuffle=False)
+#         test_loader = DataLoader(test_subset, batch_size=1, shuffle=False)
     
 #         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 #         model = hex_model(input_channel).to(device)
@@ -100,7 +100,7 @@ class hex_model(nn.Module):
 #         optimizer = optim.Adam(model.parameters(), lr=lr)
 
 #         fold_train_losses = []
-#         fold_val_losses = []
+#         fold_test_losses = []
 #         fold_acc = []
         
 #         for epoch in range(args.epochs):
@@ -119,34 +119,34 @@ class hex_model(nn.Module):
         
 #             # evaluation period
 #             model.eval()
-#             val_loss = 0
+#             test_loss = 0
 #             abs_error = 0
 #             count_samples = 0
 #             with torch.no_grad():
-#                 for inputs, targets in val_loader:
+#                 for inputs, targets in test_loader:
 #                     inputs, targets = inputs.to(device), targets.to(device)
 #                     outputs = model(inputs)
 #                     loss = criterion(outputs, targets)
-#                     val_loss += loss.item()
+#                     test_loss += loss.item()
 #                     abs_error += torch.abs(outputs - targets).sum().item()
 #                     count_samples += targets.size(0)
-#             fold_val_losses.append(val_loss / len(val_loader))
+#             fold_test_losses.append(test_loss / len(test_loader))
 #             fold_acc.append(abs_error / count_samples)
-#             print(f'Fold {i+1}, Epoch {epoch+1}, Train Loss: {fold_train_losses[-1]}, Validation Loss: {fold_val_losses[-1]}, MAE: {fold_acc[-1]}')
+#             print(f'Fold {i+1}, Epoch {epoch+1}, Train Loss: {fold_train_losses[-1]}, Test Loss: {fold_test_losses[-1]}, MAE: {fold_acc[-1]}')
 
 #         epoch_train_losses.append(fold_train_losses)
-#         epoch_val_losses.append(fold_val_losses)
+#         epoch_test_losses.append(fold_test_losses)
 #         epoch_acc.append(fold_acc)
 
 #     mean_epoch_train_losses = np.mean(epoch_train_losses, axis=0)
-#     mean_epoch_val_losses = np.mean(epoch_val_losses, axis=0)
+#     mean_epoch_test_losses = np.mean(epoch_test_losses, axis=0)
 #     mean_epoch_acc = np.mean(epoch_acc, axis=0)
 
 #     fig, ax = plt.subplots(2, figsize=(14, 9))
 #     ax[0].plot(mean_epoch_train_losses)
 #     ax[0].set_title('Training loss')
-#     ax[1].plot(mean_epoch_val_losses)
-#     ax[1].set_title('Validation loss')
+#     ax[1].plot(mean_epoch_test_losses)
+#     ax[1].set_title('Test loss')
 #     ax[1].set(xlabel='epoch')
 #     ax[1].text(0.02, 0.02, f"input_channel={input_channel}, lr={lr}, loss function: MSE Loss", fontsize=13, transform=plt.gcf().transFigure)
 #     if not os.path.exists(args.output_path):
