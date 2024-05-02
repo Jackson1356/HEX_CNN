@@ -64,7 +64,7 @@ class hex_model(nn.Module):
         x = self.dropout(x)
         x = self.fc3(x)
 
-        return x
+        return torch.sigmoid(x)
 
 
 #LOOCV training
