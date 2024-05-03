@@ -96,7 +96,7 @@ def main(args):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         model = hex_model(input_channel).to(device)
         criterion = nn.MSELoss()
-        lr = 0.005
+        lr = args.lr
         optimizer = optim.Adam(model.parameters(), lr=lr)
 
         fold_train_losses = []
@@ -165,7 +165,7 @@ def main(args):
 #     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 #     model = hex_model(input_channel).to(device)
 #     criterion = nn.MSELoss()
-#     lr = 0.005
+#     lr = args.lr
 #     optimizer = optim.Adam(model.parameters(), lr=lr)
 #     epochs = 25
 #     train_losses, val_losses = [], []
@@ -222,5 +222,7 @@ if __name__ == '__main__':
                         help='output directory')
     parser.add_argument('-f', '--output_filename', default='losses', type=str,
                         help='output directory')
+    parser.add_argument('-l', '--lr', default=0.005, type=float,
+                    help='learning rate')
     args = parser.parse_args()
     main(args)
